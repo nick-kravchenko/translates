@@ -1,0 +1,304 @@
+<!-- development version, includes helpful console warnings -->
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css" integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
+
+<style>
+    table {
+        width: 100%;
+    }
+    input {
+        width: 100%;
+    }
+</style>
+
+<div id="vue">
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="/">Translate</a>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <aside class="col-12 col-lg-3 col-xl-2">
+                <div class="row">
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="inputJs">Upload files</label>
+                                    <div class="custom-file">
+                                        <input class="custom-file-input" type="file" multiple v-on:change="loadValues" accept=".js" id="inputJs">
+                                        <label class="custom-file-label" for="inputJs">Choose js files</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="card mb-3" v-if="values.length > 0">
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="inputJs">Download files</label>
+                                    <ul class="list-group">
+                                        <li v-for="(fileName, index) in fileNames" class="list-group-item">
+                                            <a v-bind:href="output(fileName)" v-bind:download="fileName">{{fileName}}</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="inputCsv">Upload csv</label>
+                                    <div class="custom-file">
+                                        <input class="custom-file-input" type="file" v-on:change="loadCsv" accept=".csv" id="inputCsv">
+                                        <label class="custom-file-label" for="inputCsv">Choose csv file</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="card mb-3" v-if="values.length > 0">
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="inputJs">Download csv</label>
+                                    <ul class="list-group">
+                                            <li class="list-group-item">
+                                                <a v-bind:href="outputCSV()" download="translate.csv">translate.csv</a>
+                                            </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="card mb-3" v-if="values.length > 0">
+                            <div class="card-body">
+                                <label for="newTranslate">New language</label>
+                                <form class="form-inline" v-on:submit="addTranslate">
+                                    <input type="text" class="form-control mb-2 mr-sm-2" id="newTranslate" placeholder="en" v-model="newTranslate">
+                                    <button type="submit" class="btn btn-primary mb-2">Submit</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="card mb-3" v-if="values.length > 0">
+                            <div class="card-body">
+                                <label for="newField">New field</label>
+                                <form class="form-inline" v-on:submit="addField">
+                                    <input type="text" class="form-control mb-2 mr-sm-2" id="newField" v-model="newField">
+                                    <button type="submit" class="btn btn-primary mb-2">Submit</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            <section class="col-12 col-lg-9 col-xl-10">
+                <table class="table table-striped table-sm">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th v-for="(val, key) in visibleValues[0]">{{key}}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(translate, index) in visibleValues">
+                            <th class="align-middle" scope="col">{{+index + 1}}</td>
+                            <td class="align-middle" v-for="(val, key) in translate">
+                                <input type="text" :disabled="key === 'key'"
+                                       v-model="visibleValues[index][key]"
+                                       v-on:keyup="changeValue($event, index, key)"
+                                       v-bind:class="'form-control ' + (key !== 'en.js' && key !== 'key' && visibleValues[index][key] === visibleValues[index].key ? 'is-invalid' : '')">
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </div>
+    </div>
+</div>
+
+<script type="application/javascript">
+    function capitalize(string) {
+        string = string.toLowerCase();
+        return string.charAt(0).toUpperCase() + string.slice(1);
+    }
+
+    const app = new Vue({
+        el: '#vue',
+        data: {
+            fileNames: [],
+            filter: '',
+            newField: '',
+            newTranslate: '',
+            values: {},
+            visibleValues: {},
+        },
+        created () {
+            this.ws = new WebSocket('ws://localhost:40510');
+            this.ws.onopen = () => {};
+            this.ws.onmessage = (ev) => {
+                this.filter = '';
+                this.values = JSON.parse(ev.data);
+                this.fileNames = Object.keys(this.values[0]).filter(key => key !== 'key' && key !== 'Desc');
+                this.visibleValues = [...this.values];
+            };
+        },
+        methods: {
+            loadValues: async function(e) {
+                let { target } = e;
+                let { files } = target;
+                let v = [];
+                let o = await Promise.all([...files].map((file) => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            const result = event.target.result.replace(/\n+|\s{2}|(import React from "react";|export default {|})/gm, '');
+                            values = result.replace(/^'/, '').replace(/'$/, '').split(`','`).map((row) => {
+                                let key = row.split(/': '|':'/)[0];
+                                let value = row.split(/': '|':'/)[1];
+                                
+                                if (v.some(t => t.key === key)) {
+                                    v[v.findIndex(t => t.key === key)] = {
+                                        ...v[v.findIndex(t => t.key === key)],
+                                        [file.name]: value,
+                                    }
+                                } else {
+                                    v.push({
+                                        key: key,
+                                        [file.name]: capitalize(value),
+                                    });
+                                }
+
+                                return {
+                                    [key]: value
+                                };
+                            });
+                            resolve(values);
+                        }
+                        reader.onerror = error => reject(error)
+                        reader.readAsText(file) // you could also read images and other binaries
+                    });
+                }));
+                this.filter = '';
+                this.fileNames = [...files].map((file) => file.name);
+                this.values = v.map(t => { return {...t} });
+                this.visibleValues = v.map(t => { return {...t} });
+                this.ws.send(JSON.stringify(this.values));
+            },
+            loadCsv: function(e) {
+                let { target } = e;
+                let { files } = target;
+                let file = files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const result = event.target.result;
+                    let arrays = result.split(/\n/)
+                        .map((row) => {
+                            let values = [];
+                            if (row.includes('"')) {
+                                values = row.split(/","|,"|"|((?<=[\w\d|\(|\)])(,)(?=[\w\d|\(|\)]))/gm).filter(val => val !== '' && val !== ',' && val !== undefined);
+                            } else {
+                                values = row.split(/,/gm);
+                            }
+                            return values;
+                        })
+                        .filter(values => !values.every(value => value === ''));
+                    let keys = arrays.shift();
+                    let v = arrays.map((values) => {
+                        return values.reduce((acc, cur, i) => {
+                            return {
+                                ...acc,
+                                [keys[i]]: capitalize(cur)
+                            };
+                        }, {});
+                    }).map((obj) => {
+                        delete obj.Desc;
+                        return {
+                            ...obj,
+                            key: obj['en.js']
+                        }
+                    });
+                    this.filter = '';
+                    this.fileNames = [...keys].filter(key => key !== 'key' && key !== 'Desc');
+                    this.values = v.map(t => { return {...t} });
+                    this.visibleValues = v.map(t => { return {...t} });
+                }
+                reader.onerror = error => console.error(error)
+                reader.readAsText(file) // you could also read images and other binaries
+                this.ws.send(JSON.stringify(this.values));
+            },
+            output(filename) {
+                let out = this.values.map((translate) => {
+                    return `    '${translate.key}': '${translate[filename]}'`;
+                }).join(',\n');
+                out = 'export default {\n' + out + '\n}';
+                return `data:application/csv;charset=utf-8,${encodeURI(out)}`;
+            },
+            outputCSV: function() {
+                if (this.values[0]) {
+                    let keys = Object.keys(this.values[0]);
+                    let out = this.values
+                        .map((obj) => {
+                            return `"${Object.values(obj).join('","')}"`;
+                        });
+                    out.unshift(`"${keys.join('","')}"`);
+                    out = out.join('\n');
+                    return `data:application/csv;charset=utf-8,${encodeURI(out)}`;
+                }
+            },
+            changeValue: function(e, index, key) {
+                let { target } = e;
+                this.values[index][key] = target.value;
+                this.ws.send(JSON.stringify(this.values));
+            },
+            handleFilter: function(e) {
+                let { target } = e;
+            },
+            addTranslate: function(e) {
+                e.preventDefault();
+                this.fileNames.push(`${this.newTranslate}.js`);
+                this.values = this.values.map(translate => {
+                    return {
+                        ...translate,
+                        [`${this.newTranslate}.js`]: translate.key
+                    }
+                });
+                this.visibleValues = this.values.map(translate => {
+                    return {
+                        ...translate,
+                        [`${this.newTranslate}.js`]: translate.key
+                    }
+                });
+                this.newTranslate = '';
+                this.ws.send(JSON.stringify(this.values));
+            },
+            addField: function(e) {
+                e.preventDefault();
+                if (this.values.some(translate => translate.key === this.newField)) return;
+                this.values.push(this.fileNames.reduce((acc, cur) => {
+                    return {
+                        ...acc,
+                        [cur]: this.newField
+                    }
+                }, {
+                    key: this.newField,
+                }));
+                this.values = this.values.sort((a, b) => a.key > b.key ? 1 : -1);
+                this.visibleValues = {...this.values};
+                this.newField = '';
+                this.ws.send(JSON.stringify(this.values));
+            },
+            removeField: function(index) {
+                this.values.splice(index, 1);
+                this.visibleValues = {...this.values};
+                this.ws.send(JSON.stringify(this.values));
+            }
+        }
+    });
+</script>
