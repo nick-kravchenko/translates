@@ -1,4 +1,5 @@
 const debounce = require('./debounce');
+const t = require('./translate');
 
 let WebSocketServer = require('ws').Server,
     fs = require('fs'),
@@ -43,6 +44,9 @@ fs.readFile('./storage/translate.csv', 'utf8', (err, data) => {
 });
 
 const updateTranslates = debounce(() => {
+    clients.forEach((client) => {
+        client.send(JSON.stringify(translates));
+    });
     let values = translates;
     let keys = Object.keys(values[0]);
     let out = values.map((obj) => `"${Object.values(obj).join('","')}"`);
@@ -60,17 +64,38 @@ const updateTranslates = debounce(() => {
         );
     });
 }, 1500);
+const addLanguage = function(lang) {
+    const q = translates.map(val => val.key).join('\n');
+    t(q, lang).then((response) => {
+        const w = response.split('\n');
+        translates = translates.map((val, i) => {
+            return {
+                ...val,
+                [`${lang}.js`]: w[i]
+            }
+        });
+        updateTranslates();
+    }).catch((err) => {
+        console.error(err);
+    })
+}
 
 wss.on('connection', function (ws) {
     clients.push(ws);
     ws.send(JSON.stringify(translates));
 
     ws.on('message', function (message) {
-        translates = JSON.parse(message);
-        updateTranslates();
-        clients.forEach((client) => {
-            client.send(message);
-        });
+        switch (JSON.parse(message).key) {
+            case 'updateTranslates':
+                translates = JSON.parse(message).data;
+                updateTranslates();
+                break;
+            case 'addLanguage':
+                addLanguage(JSON.parse(message).data);
+                break;
+            default:
+                break;
+        }
     });
 
     ws.on('close', function () {

@@ -1,2 +1,4 @@
 /node_modules/
 /storage/
+GOOGLE_TRANSLATE_CREDENTIALS.json
+.env

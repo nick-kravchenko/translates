@@ -13,14 +13,17 @@
 </style>
 
 <div id="vue">
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="/">Translate</a>
-    </nav>
+    <nav class="navbar navbar-light bg-light">
+        <a class="navbar-brand">Translate</a>
+        <form class="form-inline">
+          <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search" v-model="filter">
+        </form>
+      </nav>
     <div class="container-fluid">
         <div class="row">
-            <aside class="col-12 col-lg-3 col-xl-2">
+            <aside class="col-12 col-lg-3">
                 <div class="row">
-                    <div class="col-12 col-md-6 col-lg-12">
+                    <div class="col-12 col-md-6 col-lg-12" v-if="values.length === 0">
                         <div class="card mb-3">
                             <div class="card-body">
                                 <div class="form-group">
@@ -47,7 +50,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-md-6 col-lg-12">
+                    <div class="col-12 col-md-6 col-lg-12" v-if="values.length === 0">
                         <div class="card mb-3">
                             <div class="card-body">
                                 <div class="form-group">
@@ -66,9 +69,9 @@
                                 <div class="form-group">
                                     <label for="inputJs">Download csv</label>
                                     <ul class="list-group">
-                                            <li class="list-group-item">
-                                                <a v-bind:href="outputCSV()" download="translate.csv">translate.csv</a>
-                                            </li>
+                                        <li class="list-group-item">
+                                            <a v-bind:href="outputCSV()" download="translate.csv">translate.csv</a>
+                                        </li>
                                     </ul>
                                 </div>
                             </div>
@@ -78,7 +81,7 @@
                         <div class="card mb-3" v-if="values.length > 0">
                             <div class="card-body">
                                 <label for="newTranslate">New language</label>
-                                <form class="form-inline" v-on:submit="addTranslate">
+                                <form class="form-inline" v-on:submit="addLanguage">
                                     <input type="text" class="form-control mb-2 mr-sm-2" id="newTranslate" placeholder="en" v-model="newTranslate">
                                     <button type="submit" class="btn btn-primary mb-2">Submit</button>
                                 </form>
@@ -98,22 +101,33 @@
                     </div>
                 </div>
             </aside>
-            <section class="col-12 col-lg-9 col-xl-10">
+            <section class="col-12 col-lg-9">
                 <table class="table table-striped table-sm">
                     <thead>
                         <tr>
+                            <th class="align-middle"><i class="fa fa-trash"></i></th>
                             <th>Index</th>
-                            <th v-for="(val, key) in visibleValues[0]">{{key}}</th>
+                            <th v-for="(val, key) in values[0]">
+                                {{key}}
+                                <button type="button" v-if="key !== 'key'" class="btn btn-danger btn-sm" v-on:click="removeLanguage(key)">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="(translate, index) in visibleValues">
+                            <td class="align-middle">
+                                <button type="button" v-on:click="removeField(i)" class="btn btn-danger btn-sm">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </td>
                             <th class="align-middle" scope="col">{{+index + 1}}</td>
                             <td class="align-middle" v-for="(val, key) in translate">
                                 <input type="text" :disabled="key === 'key'"
-                                       v-model="visibleValues[index][key]"
+                                       v-model="values[index][key]"
                                        v-on:keyup="changeValue($event, index, key)"
-                                       v-bind:class="'form-control ' + (key !== 'en.js' && key !== 'key' && visibleValues[index][key] === visibleValues[index].key ? 'is-invalid' : '')">
+                                       v-bind:class="'form-control ' + (key !== 'en.js' && key !== 'key' && values[index][key] === values[index].key ? 'is-invalid' : '')">
                             </td>
                         </tr>
                     </tbody>
@@ -136,18 +150,25 @@
             filter: '',
             newField: '',
             newTranslate: '',
-            values: {},
-            visibleValues: {},
+            values: [],
         },
         created () {
-            this.ws = new WebSocket('ws://localhost:40510');
+            this.ws = new WebSocket(`ws://${window.location.hostname}:40510`);
             this.ws.onopen = () => {};
             this.ws.onmessage = (ev) => {
                 this.filter = '';
                 this.values = JSON.parse(ev.data);
-                this.fileNames = Object.keys(this.values[0]).filter(key => key !== 'key' && key !== 'Desc');
-                this.visibleValues = [...this.values];
+                this.fileNames = Object.keys(this.values[0]).filter(key => key !== 'Desc');
             };
+        },
+        computed: {
+            visibleValues: function() {
+                let v =  this.values.filter((row) => {
+                    if (this.filter === '') return true;
+                    return Object.values(row).some(val => new RegExp(this.filter.toLowerCase()).test(val.toLowerCase()));
+                });
+                return v;
+            },
         },
         methods: {
             loadValues: async function(e) {
@@ -188,8 +209,7 @@
                 this.filter = '';
                 this.fileNames = [...files].map((file) => file.name);
                 this.values = v.map(t => { return {...t} });
-                this.visibleValues = v.map(t => { return {...t} });
-                this.ws.send(JSON.stringify(this.values));
+                this.updateTranslates();
             },
             loadCsv: function(e) {
                 let { target } = e;
@@ -227,11 +247,10 @@
                     this.filter = '';
                     this.fileNames = [...keys].filter(key => key !== 'key' && key !== 'Desc');
                     this.values = v.map(t => { return {...t} });
-                    this.visibleValues = v.map(t => { return {...t} });
                 }
                 reader.onerror = error => console.error(error)
                 reader.readAsText(file) // you could also read images and other binaries
-                this.ws.send(JSON.stringify(this.values));
+                this.updateTranslates();
             },
             output(filename) {
                 let out = this.values.map((translate) => {
@@ -255,28 +274,25 @@
             changeValue: function(e, index, key) {
                 let { target } = e;
                 this.values[index][key] = target.value;
-                this.ws.send(JSON.stringify(this.values));
+                this.updateTranslates();
             },
             handleFilter: function(e) {
                 let { target } = e;
             },
-            addTranslate: function(e) {
+            addLanguage: function(e) {
                 e.preventDefault();
-                this.fileNames.push(`${this.newTranslate}.js`);
-                this.values = this.values.map(translate => {
-                    return {
-                        ...translate,
-                        [`${this.newTranslate}.js`]: translate.key
-                    }
-                });
-                this.visibleValues = this.values.map(translate => {
-                    return {
-                        ...translate,
-                        [`${this.newTranslate}.js`]: translate.key
-                    }
-                });
+                this.ws.send(JSON.stringify({
+                    key: 'addLanguage',
+                    data: this.newTranslate
+                }));
                 this.newTranslate = '';
-                this.ws.send(JSON.stringify(this.values));
+            },
+            removeLanguage(key) {
+                this.fileNames = this.fileNames.filter(name => name !== key);
+                this.values.forEach(value => {
+                    delete value[key];
+                });
+                this.updateTranslates();
             },
             addField: function(e) {
                 e.preventDefault();
@@ -290,14 +306,18 @@
                     key: this.newField,
                 }));
                 this.values = this.values.sort((a, b) => a.key > b.key ? 1 : -1);
-                this.visibleValues = {...this.values};
                 this.newField = '';
-                this.ws.send(JSON.stringify(this.values));
+                this.updateTranslates();
             },
             removeField: function(index) {
                 this.values.splice(index, 1);
-                this.visibleValues = {...this.values};
-                this.ws.send(JSON.stringify(this.values));
+                this.updateTranslates();
+            },
+            updateTranslates: function() {
+                this.ws.send(JSON.stringify({
+                    key: 'updateTranslates',
+                    data: this.values
+                }))
             }
         }
     });
