@@ -1,11 +1,13 @@
 const debounce = require('./debounce');
 const t = require('./translate');
+const users = require('./storage/users');
 
 let WebSocketServer = require('ws').Server,
     fs = require('fs'),
     wss = new WebSocketServer({ port: 40510 }),
     clients = [],
-    translates = [];
+    translates = [],
+    disabledFields = [];
 
 fs.readFile('./storage/translate.csv', 'utf8', (err, data) => {
     if (err) return console.error(err);
@@ -45,25 +47,51 @@ fs.readFile('./storage/translate.csv', 'utf8', (err, data) => {
 
 const updateTranslates = debounce(() => {
     clients.forEach((client) => {
-        client.send(JSON.stringify(translates));
+        client.send(JSON.stringify({
+            type: 'updateTranslates',
+            data: translates,
+        }));
     });
     let values = translates;
-    let keys = Object.keys(values[0]);
-    let out = values.map((obj) => `"${Object.values(obj).join('","')}"`);
-    out.unshift(`"${keys.join('","')}"`);
-    out = out.join('\n');
-    fs.unlink('./storage/translate.csv', (err) => {
-        if (err) throw err;
-        fs.appendFile(
-            './storage/translate.csv',
-            out,
-            function(err) {
-                if (err) throw err;
-                console.log('Translates updated.');
-            }
-        );
-    });
+    if (values.length > 0) {
+        let keys = Object.keys(values[0]);
+        let out = values.map((obj) => `"${Object.values(obj).join('","')}"`);
+        out.unshift(`"${keys.join('","')}"`);
+        out = out.join('\n');
+        fs.unlink('./storage/translate.csv', (err) => {
+            if (err) throw err;
+            fs.appendFile(
+                './storage/translate.csv',
+                out,
+                function(err) {
+                    if (err) throw err;
+                    console.log('Translates updated.');
+                }
+            );
+        });
+    }
 }, 1500);
+const updateDisabledFields = function() {
+    clients.forEach((client) => {
+        client.send(JSON.stringify({
+            type: 'updateDisabledFields',
+            data: disabledFields
+        }))
+    });
+}
+
+const focusField = function(data, params) {
+    disabledFields.push({
+        ...data,
+        user: params.name
+    });
+    updateDisabledFields();
+}
+const releaseField = function(data, params) {
+    disabledFields.splice(disabledFields.indexOf(f => f.index != data.index && f.key != data.key));
+    updateDisabledFields();
+}
+
 const addLanguage = function(lang) {
     const q = translates.map(val => val.key).join('\n');
     t(q, lang).then((response) => {
@@ -80,25 +108,50 @@ const addLanguage = function(lang) {
     })
 }
 
-wss.on('connection', function (ws) {
-    clients.push(ws);
-    ws.send(JSON.stringify(translates));
-
-    ws.on('message', function (message) {
-        switch (JSON.parse(message).key) {
-            case 'updateTranslates':
-                translates = JSON.parse(message).data;
-                updateTranslates();
-                break;
-            case 'addLanguage':
-                addLanguage(JSON.parse(message).data);
-                break;
-            default:
-                break;
+wss.on('connection', function (ws, a) {
+    const params = a.url.replace('/?', '').split('&').map(a => {
+        return {
+            [a.split('=')[0]]: a.split('=')[1]
         }
-    });
-
-    ws.on('close', function () {
-        clients = clients.filter(client => client !== ws);
-    });
+    }).reduce((acc, cur) => {
+        return {
+            ...acc,
+            ...cur
+        }
+    }, {});
+    if (users[params.name] !== params.pass) {
+        ws.close();
+        console.log('Unauthorized: ', JSON.stringify(params));
+    } else {
+        console.log('Authorized', JSON.stringify(params));
+        clients.push(ws);
+        updateTranslates();
+        updateDisabledFields();
+    
+        ws.on('message', function (message) {
+            switch (JSON.parse(message).key) {
+                case 'focusField':
+                    focusField(JSON.parse(message).data, params);
+                    break;
+                case 'releaseField':
+                    releaseField(JSON.parse(message).data, params);
+                    break;
+                case 'updateTranslates':
+                    translates = JSON.parse(message).data;
+                    updateTranslates();
+                    break;
+                case 'addLanguage':
+                    addLanguage(JSON.parse(message).data);
+                    break;
+                default:
+                    break;
+            }
+        });
+    
+        ws.on('close', function () {
+            clients = clients.filter(client => client !== ws);
+            disabledFields = disabledFields.filter(field => field.user !== params.name);
+            updateDisabledFields();
+        });
+    }
 });

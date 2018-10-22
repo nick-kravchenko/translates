@@ -12,8 +12,10 @@ app.get('/', function (req, res) {
       res.status(401).send({
         message: 'Unauthorized'
       });
+    } else {
+      res.set('user', JSON.stringify(credentials));
+      res.sendFile(__dirname + '/ws.html');
     }
-    res.sendFile(__dirname + '/ws.html');
 })
 
 app.listen(3000, function () {
