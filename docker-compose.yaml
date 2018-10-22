@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  app:
+    build: ./
+    hostname: app
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
+      GOOGLE_TRANSLATE_PROJECT_ID: ${GOOGLE_TRANSLATE_PROJECT_ID}
+      PORT: ${PORT}
+      GOOGLE_TRANSLATE_CREDENTIALS_type: ${GOOGLE_TRANSLATE_CREDENTIALS_type}
+      GOOGLE_TRANSLATE_CREDENTIALS_project_id: ${GOOGLE_TRANSLATE_CREDENTIALS_project_id}
+      GOOGLE_TRANSLATE_CREDENTIALS_private_key_id: ${GOOGLE_TRANSLATE_CREDENTIALS_private_key_id}
+      GOOGLE_TRANSLATE_CREDENTIALS_private_key: ${GOOGLE_TRANSLATE_CREDENTIALS_private_key}
+      GOOGLE_TRANSLATE_CREDENTIALS_client_email: ${GOOGLE_TRANSLATE_CREDENTIALS_client_email}
+      GOOGLE_TRANSLATE_CREDENTIALS_client_id: ${GOOGLE_TRANSLATE_CREDENTIALS_client_id}
+      GOOGLE_TRANSLATE_CREDENTIALS_auth_uri: ${GOOGLE_TRANSLATE_CREDENTIALS_auth_uri}
+      GOOGLE_TRANSLATE_CREDENTIALS_token_uri: ${GOOGLE_TRANSLATE_CREDENTIALS_token_uri}
+      GOOGLE_TRANSLATE_CREDENTIALS_auth_provider_x509_cert_url: ${GOOGLE_TRANSLATE_CREDENTIALS_auth_provider_x509_cert_url}
+      GOOGLE_TRANSLATE_CREDENTIALS_client_x509_cert_url: ${GOOGLE_TRANSLATE_CREDENTIALS_client_x509_cert_url}
+      user_name: ${user_name}
+      user_pass: ${user_pass}
+    ports:
+      - 80:3000
+      - 40510:40510
+    volumes:
+      - ./:/var/www/app:Z

@@ -1,5 +1,6 @@
-const debounce = require('./debounce');
-const t = require('./translate');
+const debounce = require('./helpers/debounce');
+const t = require('./helpers/translate');
+const randomColor = require('./helpers/randomColor');
 const users = require('./storage/users');
 
 let WebSocketServer = require('ws').Server,
@@ -7,7 +8,8 @@ let WebSocketServer = require('ws').Server,
     wss = new WebSocketServer({ port: 40510 }),
     clients = [],
     translates = [],
-    disabledFields = [];
+    disabledFields = [],
+    connectedUsers = [];
 
 fs.readFile('./storage/translate.csv', 'utf8', (err, data) => {
     if (err) return console.error(err);
@@ -79,6 +81,14 @@ const updateDisabledFields = function() {
         }))
     });
 }
+const updateUsers = function() {
+    clients.forEach((client) => {
+        client.send(JSON.stringify({
+            type: 'updateConnectedUsers',
+            data: connectedUsers
+        }))
+    })
+}
 
 const focusField = function(data, params) {
     disabledFields.push({
@@ -120,13 +130,22 @@ wss.on('connection', function (ws, a) {
         }
     }, {});
     if (users[params.name] !== params.pass) {
+        ws.send(JSON.stringify({
+            type: 'unauthorized',
+            data: true
+        }))
         ws.close();
         console.log('Unauthorized: ', JSON.stringify(params));
     } else {
         console.log('Authorized', JSON.stringify(params));
+        connectedUsers.push({
+            name: params.name,
+            color: randomColor()
+        })
         clients.push(ws);
         updateTranslates();
         updateDisabledFields();
+        updateUsers();
     
         ws.on('message', function (message) {
             switch (JSON.parse(message).key) {
@@ -151,6 +170,7 @@ wss.on('connection', function (ws, a) {
         ws.on('close', function () {
             clients = clients.filter(client => client !== ws);
             disabledFields = disabledFields.filter(field => field.user !== params.name);
+            connectedUsers = connectedUsers.filter(user => user.name !== params.name)
             updateDisabledFields();
         });
     }

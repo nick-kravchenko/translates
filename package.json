@@ -4,6 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build-credentials": "node build-scripts/create-google-translate-credentials.js",
+    "build-users": "node build-scripts/create-users.js",
+    "build": "npm run build-credentials && npm run build-users",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

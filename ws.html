@@ -12,18 +12,38 @@
     }
 </style>
 
-<div id="vue">
-    <nav class="navbar navbar-light bg-light">
+<div id="vue" class="pt-5 mt-5">
+    <nav class="navbar fixed-top navbar-light bg-light">
         <a class="navbar-brand">Translate</a>
         <span>Logged in as: {{user.name}}</span>
-        <form class="form-inline">
+        <form class="form-inline m-0">
           <input class="form-control mr-sm-2" type="search" placeholder="Search" aria-label="Search" v-model="filter">
         </form>
-      </nav>
-    <div class="container-fluid">
+    </nav>
+    <div class="container-fluid" v-if="unauthorized">
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    Bad credentials.
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container-fluid" v-if="!unauthorized">
         <div class="row">
             <aside class="col-12 col-lg-3">
                 <div class="row">
+                    <div class="col-12 col-md-6 col-lg-12">
+                        <div class="form-group">
+                            <label>Users</label>
+                            <ul class="list-group">
+                                <li v-for="(user, index) in connectedUsers" class="list-group-item" v-bind:style="{border: `1px solid rgba(${user.color.r}, ${user.color.g}, ${user.color.b}, .75)`, color: `rgba(${user.color.r}, ${user.color.g}, ${user.color.b}, 1)`}">
+                                    <i class="fa fa-user"></i>
+                                    {{user.name}}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
                     <div class="col-12 col-md-6 col-lg-12" v-if="values.length === 0">
                         <div class="card p-3 mb-3">
                             <div class="form-group">
@@ -35,15 +55,12 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-md-6 col-lg-12">
-                        <div class="form-group">
-                            <label for="inputJs">Download files</label>
-                            <ul class="list-group">
-                                <li v-for="(fileName, index) in fileNames" class="list-group-item">
-                                    <button type="button" class="btn btn-primary btn-block" v-on:click="download('js', fileName)">{{fileName}}</button>
-                                </li>
-                            </ul>
-                        </div>
+                    <div class="col-12 col-md-6 col-lg-12" v-if="values.length > 0">
+                        <label>Download files</label>
+                        <button v-for="(fileName, index) in fileNames" type="button" class="btn btn-primary btn-block" v-on:click="download('js', fileName)">
+                            <i class="fa fa-file-download"></i>
+                            {{fileName}}
+                        </button>
                     </div>
                     <div class="col-12 col-md-6 col-lg-12" v-if="values.length === 0">
                         <div class="card p-3 mb-3">
@@ -56,33 +73,28 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-md-6 col-lg-12">
+                    <div class="col-12 col-md-6 col-lg-12" v-if="values.length > 0">
                         <div class="form-group">
-                            <label for="inputJs">Download csv</label>
-                            <ul class="list-group">
-                                <li class="list-group-item">
-                                    <button type="button" class="btn btn-primary btn-block" v-on:click="download('csv', 'translate.csv')">translate.csv</button>
-                                </li>
-                            </ul>
+                            <label>Download csv</label>
+                            <button type="button" class="btn btn-primary btn-block" v-on:click="download('csv', 'translate.csv')">
+                                <i class="fa fa-file-download"></i>
+                                translate.csv
+                            </button>
                         </div>
                     </div>
-                    <div class="col-12 col-md-6 col-lg-12">
-                        <div class="card p-3 mb-3" v-if="values.length > 0">
-                            <label for="newTranslate">New language</label>
-                            <form class="form-inline" v-on:submit="addLanguage">
-                                <input type="text" class="form-control mb-2 mr-sm-2" id="newTranslate" placeholder="en" v-model="newTranslate">
-                                <button type="submit" class="btn btn-primary mb-2">Submit</button>
-                            </form>
-                        </div>
+                    <div class="col-12 col-md-6 col-lg-12" v-if="values.length > 0">
+                        <label for="newTranslate">New language</label>
+                        <form class="form-inline" v-on:submit="addLanguage">
+                            <input type="text" class="form-control mb-2 mr-sm-2" id="newTranslate" placeholder="en" v-model="newTranslate">
+                            <button type="submit" class="btn btn-primary mb-2">Submit</button>
+                        </form>
                     </div>
-                    <div class="col-12 col-md-6 col-lg-12">
-                        <div class="card p-3 mb-3" v-if="values.length > 0">
-                            <label for="newField">New field</label>
-                            <form class="form-inline" v-on:submit="addField">
-                                <input type="text" class="form-control mb-2 mr-sm-2" id="newField" v-model="newField">
-                                <button type="submit" class="btn btn-primary mb-2">Submit</button>
-                            </form>
-                        </div>
+                    <div class="col-12 col-md-6 col-lg-12" v-if="values.length > 0">
+                        <label for="newField">New field</label>
+                        <form class="form-inline" v-on:submit="addField">
+                            <input type="text" class="form-control mb-2 mr-sm-2" id="newField" v-model="newField">
+                            <button type="submit" class="btn btn-primary mb-2">Submit</button>
+                        </form>
                     </div>
                 </div>
             </aside>
@@ -111,6 +123,12 @@
                             <td class="align-middle" v-for="(val, key) in translate">
                                 <input type="text" :disabled="key === 'key' || disabledFields.some(field => field.index == index && field.key == key && field.user != user.name)"
                                        v-bind:title="(disabledFields.some(field => field.index == index && field.key == key) ? `Editing by: ${disabledFields.find(field => field.index == index && field.key == key).user}` : '')"
+                                       v-bind:style="(disabledFields.some(field => field.index == index && field.key == key) ? {background: `rgba(
+                                            ${connectedUsers.find(user => user.name === disabledFields.find(field => field.index == index && field.key == key).user).color.r},
+                                            ${connectedUsers.find(user => user.name === disabledFields.find(field => field.index == index && field.key == key).user).color.g},
+                                            ${connectedUsers.find(user => user.name === disabledFields.find(field => field.index == index && field.key == key).user).color.b},
+                                            .25
+                                        )`} : {})"
                                        v-model="values[index][key]"
                                        v-on:focus="focusField($event, index, key)"
                                        v-on:blur="releaseField($event, index, key)"
@@ -138,9 +156,11 @@
             filter: '',
             newField: '',
             newTranslate: '',
+            unauthorized: false,
             values: [],
             disabledFields: [],
             user: {},
+            connectedUsers: [],
         },
         created () {
             this.getUser();
@@ -179,7 +199,12 @@
                         case 'updateDisabledFields':
                             this.disabledFields = message.data;
                             break;
-                    
+                        case 'updateConnectedUsers':
+                            this.connectedUsers = message.data;
+                            break;
+                        case 'unauthorized':
+                            this.unauthorized = true;
+                            break;
                         default:
                             break;
                     }
